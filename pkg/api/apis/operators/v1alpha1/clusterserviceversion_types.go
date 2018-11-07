@@ -252,6 +252,7 @@ const (
 	RequirementStatusReasonPresent             StatusReason = "Present"
 	RequirementStatusReasonNotPresent          StatusReason = "NotPresent"
 	RequirementStatusReasonPresentNotSatisfied StatusReason = "PresentNotSatisfied"
+	RequirementStatusReasonNotAvailable        StatusReason = "PresentNotAvailable"
 	DependentStatusReasonSatisfied             StatusReason = "Satisfied"
 	DependentStatusReasonNotSatisfied          StatusReason = "NotSatisfied"
 )
