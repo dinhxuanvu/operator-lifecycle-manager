@@ -312,6 +312,101 @@ func TestCreateCSVWithUnmetPermissionsCRD(t *testing.T) {
 
 }
 
+func TestCreateCSVWithNotReadyCRD(t *testing.T) {
+	defer cleaner.NotifyTestComplete(t, true)
+
+	c := newKubeClient(t)
+	crc := newCRClient(t)
+
+	depName := genName("dep-")
+
+	// Create dependency first (CRD)
+	crdPlural := genName("ins-nr")
+	crdName := crdPlural + ".cluster.com"
+	crd := extv1beta1.CustomResourceDefinition{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: crdName,
+		},
+		Spec: extv1beta1.CustomResourceDefinitionSpec{
+			Group:   "cluster.com",
+			Version: "v1alpha1",
+			Names: extv1beta1.CustomResourceDefinitionNames{
+				Plural:   crdPlural,
+				Singular: crdPlural,
+				Kind:     crdPlural,
+				ListKind: "list" + crdPlural,
+			},
+			Scope: "Namespaced",
+		},
+	}
+	cleanupCRD, err := createCRD(c, crd)
+	require.NoError(t, err)
+	defer cleanupCRD()
+
+	csv := v1alpha1.ClusterServiceVersion{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       v1alpha1.ClusterServiceVersionKind,
+			APIVersion: v1alpha1.ClusterServiceVersionAPIVersion,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: genName("csv"),
+		},
+		Spec: v1alpha1.ClusterServiceVersionSpec{
+			InstallStrategy: newNginxInstallStrategy(depName, nil, nil),
+			CustomResourceDefinitions: v1alpha1.CustomResourceDefinitions{
+				Owned: []v1alpha1.CRDDescription{
+					{
+						Name:        crdName,
+						Version:     "v1alpha1",
+						Kind:        crdPlural,
+						DisplayName: crdName,
+						Description: "In the cluster",
+					},
+				},
+			},
+		},
+	}
+
+	// Get the latest version of CRD
+	getCRD, err := c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+	require.NoError(t, err)
+
+	fmt.Println("test 0")
+	fmt.Printf("%+v\n", getCRD.Status.Conditions)
+
+	// Update CRD condition status
+	for i := range getCRD.Status.Conditions {
+		if getCRD.Status.Conditions[i].Type == extv1beta1.Established {
+			existingCondition := &getCRD.Status.Conditions[i]
+			fmt.Printf("%+v\n", existingCondition)
+			fmt.Printf("%+v\n", existingCondition.Status)
+			existingCondition.Status = extv1beta1.ConditionFalse
+		}
+	}
+
+	fmt.Printf("%+v\n", getCRD.Status.Conditions)
+
+	// _, err = c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().UpdateStatus(getCRD)
+	// require.NoError(t, err)
+
+	getCRD, err = c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+	fmt.Printf("%+v\n", getCRD.Status.Conditions)
+
+	cleanupCSV, err := createCSV(t, c, crc, csv, testNamespace, true)
+	require.NoError(t, err)
+	defer cleanupCSV()
+
+	getCRD, err = c.ApiextensionsV1beta1Interface().ApiextensionsV1beta1().CustomResourceDefinitions().Get(crdName, metav1.GetOptions{})
+	fmt.Printf("%+v\n", getCRD.Status.Conditions)
+
+	_, err = fetchCSV(t, crc, csv.Name, csvPendingChecker)
+	require.NoError(t, err)
+
+	// Shouldn't create deployment
+	_, err = c.GetDeployment(testNamespace, depName)
+	require.Error(t, err)
+}
+
 func TestCreateCSVWithUnmetRequirementsAPIService(t *testing.T) {
 	defer cleaner.NotifyTestComplete(t, true)
 
