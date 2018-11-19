@@ -38,16 +38,12 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 
 		if crd.Spec.Version == r.Version {
 			status.Status = v1alpha1.RequirementStatusReasonPresent
-			status.UUID = string(crd.GetUID())
-			statuses = append(statuses, status)
 		} else {
 			served := false
 			for _, version := range crd.Spec.Versions {
 				if version.Name == r.Version {
 					if version.Served {
 						status.Status = v1alpha1.RequirementStatusReasonPresent
-						status.UUID = string(crd.GetUID())
-						statuses = append(statuses, status)
 						served = true
 					}
 					break
@@ -68,6 +64,8 @@ func (a *Operator) requirementStatus(strategyDetailsDeployment *install.Strategy
 			switch cdt.Type {
 			case v1beta1.Established:
 				if cdt.Status == v1beta1.ConditionTrue {
+					status.UUID = string(crd.GetUID())
+					statuses = append(statuses, status)
 					registered = true
 				}
 			}
