@@ -474,13 +474,6 @@ func TestRequirementAndPermissionStatus(t *testing.T) {
 					Version: "v1beta1",
 					Kind:    "CustomResourceDefinition",
 					Name:    "c1group",
-					Status:  v1alpha1.RequirementStatusReasonPresent,
-				},
-				{"apiextensions.k8s.io", "v1beta1", "CustomResourceDefinition", "c1group"}: {
-					Group:   "apiextensions.k8s.io",
-					Version: "v1beta1",
-					Kind:    "CustomResourceDefinition",
-					Name:    "c1group",
 					Status:  v1alpha1.RequirementStatusReasonNotAvailable,
 				},
 			},
