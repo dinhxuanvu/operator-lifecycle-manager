@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	"fmt"
 
+	"github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -45,23 +46,26 @@ var safeToAnnotateOperatorGroupReasons = map[ConditionReason]struct{}{
 }
 
 // SetPhaseWithEventIfChanged emits a Kubernetes event with details of a phase change and sets the current phase if phase, reason, or message would changed
-func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
+func (c *ClusterServiceVersion) SetPhaseWithEventIfChanged(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder, logger *logrus.Entry) {
 	if c.Status.Phase == phase && c.Status.Reason == reason && c.Status.Message == message {
+		logger.Debugf("CSV Phase: %s, Reason: %s, Message: %s", c.Status.Phase, c.Status.Reason, c.Status.Message)
 		return
 	}
-
-	c.SetPhaseWithEvent(phase, reason, message, now, recorder)
+	logger.Debugf("Requested Phase: %s, Reason: %s, Message: %s", c.Status.Phase, c.Status.Reason, c.Status.Message)
+	c.SetPhaseWithEvent(phase, reason, message, now, recorder, logger)
 }
 
 // SetPhaseWithEvent generates a Kubernetes event with details about the phase change and sets the current phase
-func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder) {
+func (c *ClusterServiceVersion) SetPhaseWithEvent(phase ClusterServiceVersionPhase, reason ConditionReason, message string, now metav1.Time, recorder record.EventRecorder, logger *logrus.Entry) {
 	var eventtype string
 	if phase == CSVPhaseFailed {
 		eventtype = v1.EventTypeWarning
 	} else {
 		eventtype = v1.EventTypeNormal
 	}
+	logger.Debugf("Current Phase: %s, Reason: %s, Message: %s", c.Status.Phase, c.Status.Reason, c.Status.Message)
 	go recorder.Event(c, eventtype, string(reason), message)
+	logger.Debugf("Changing Phase: %s, Reason: %s, Message: %s", phase, reason, message)
 	c.SetPhase(phase, reason, message, now)
 }
 
