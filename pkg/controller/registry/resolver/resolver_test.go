@@ -44,7 +44,9 @@ var (
 
 func TestNamespaceResolver(t *testing.T) {
 	namespace := "catsrc-namespace"
+	altNamespace := "alt-catsrc-namespace"
 	catalog := CatalogKey{"catsrc", namespace}
+	altnsCatalog := CatalogKey{"alt-ns-catalog", altNamespace}
 	type out struct {
 		steps   [][]*v1alpha1.Step
 		lookups []v1alpha1.BundleLookup
@@ -538,6 +540,32 @@ func TestNamespaceResolver(t *testing.T) {
 				subs: []*v1alpha1.Subscription{
 					updatedSub(namespace, "a.v2", "a", "alpha", catalog),
 					updatedSub(namespace, "b.v2", "b", "beta", catalog),
+				},
+			},
+		},
+		{
+			name: "NewSub/SameDependencyInMultipleCatalogs/PreferCatalogInSameNamespace",
+			clusterState: []runtime.Object{
+				newSub(namespace, "a", "alpha", catalog),
+			},
+			bundlesByCatalog: map[CatalogKey][]*api.Bundle{
+				catalog: {
+					bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+				},
+				altnsCatalog: {
+					bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil),
+					bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil),
+				},
+			},
+			out: out{
+				steps: [][]*v1alpha1.Step{
+					bundleSteps(bundle("a.v1", "a", "alpha", "", nil, Requires1, nil, nil), namespace, "", catalog),
+					bundleSteps(bundle("b.v1", "b", "beta", "", Provides1, nil, nil, nil), namespace, "", catalog),
+					subSteps(namespace, "b.v1", "b", "beta", catalog),
+				},
+				subs: []*v1alpha1.Subscription{
+					updatedSub(namespace, "a.v1", "a", "alpha", catalog),
 				},
 			},
 		},
