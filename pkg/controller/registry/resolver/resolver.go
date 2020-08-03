@@ -291,15 +291,18 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 
 		bundleInstallable := NewBundleInstallable(bundle.Identifier(), bundle.Channel(), bundleSource.Catalog)
 		visited[bundle] = &bundleInstallable
-
+		fmt.Printf("bundleInstallable: %+v %+v\n", bundleInstallable.Identifier, bundleInstallable.Constraints)
 		dependencyPredicates, err := bundle.DependencyPredicates()
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
+		fmt.Printf("dependencyPredicates: %+v\n", dependencyPredicates)
 		for _, d := range dependencyPredicates {
+			fmt.Printf("dependencyPredicate: %+v\n", d)
 			// errors ignored; this will build an empty/unsatisfiable dependency if no candidates are found
 			candidateBundles, _ := AtLeast(1, namespacedCache.FindPreferred(&bundle.sourceInfo.Catalog, d))
+			fmt.Printf("candidateBundles: %+v\n", candidateBundles)
 			sortedBundles, err := r.sortBundles(candidateBundles)
 			if err != nil {
 				errs = append(errs, err)
@@ -308,6 +311,11 @@ func (r *SatResolver) getBundleInstallables(catalog registry.CatalogKey, predica
 			bundleDependencies := make([]solver.Identifier, 0)
 			for _, dep := range sortedBundles {
 				found := namespacedCache.Catalog(dep.SourceInfo().Catalog).Find(WithCSVName(dep.Identifier()))
+				fmt.Printf("dep.Identifier: %+v\n", dep.Identifier())
+				fmt.Printf("dep.SourceInfo().Catalog: %+v\n", dep.SourceInfo().Catalog)
+				for _, op := range found {
+					fmt.Printf("found: %+v %+v %+v %+v %+v\n", op.name, op.version, op.sourceInfo.Catalog, op.sourceInfo.Package, op.sourceInfo.Channel)
+				}
 				if len(found) > 1 {
 					err := fmt.Errorf("found duplicate entries for %s in %s", bundle.Identifier(), dep.sourceInfo.Catalog)
 					errs = append(errs, err)

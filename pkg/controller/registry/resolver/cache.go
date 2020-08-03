@@ -186,16 +186,20 @@ func (c *OperatorCache) populate(ctx context.Context, snapshot *CatalogSnapshot,
 	var operators []*Operator
 	for b := it.Next(); b != nil; b = it.Next() {
 		defaultChannel, ok := defaultChannels[b.PackageName]
+		fmt.Printf("b.PackageName: %v\n", b.PackageName)
 		if !ok {
 			if p, err := registry.GetPackage(ctx, b.PackageName); err != nil {
 				snapshot.logger.Warnf("failed to retrieve default channel for bundle, continuing: %v", err)
 				continue
 			} else {
 				defaultChannels[b.PackageName] = p.DefaultChannelName
+				fmt.Printf("p.DefaultChannelName: %v\n", p.DefaultChannelName)
 				defaultChannel = p.DefaultChannelName
 			}
 		}
+		fmt.Printf("defaultChannel: %v\n", defaultChannel)
 		o, err := NewOperatorFromBundle(b, "", snapshot.key, defaultChannel)
+		fmt.Printf("o: %+v\n", o)
 		if err != nil {
 			snapshot.logger.Warnf("failed to construct operator from bundle, continuing: %v", err)
 			continue

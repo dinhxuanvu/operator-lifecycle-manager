@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/operator-framework/operator-lifecycle-manager/test/e2e/ctx"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
@@ -205,7 +206,7 @@ var _ = Describe("Install Plan", func() {
 
 	Context("creation with pre existing CRD owners", func() {
 
-		It("OnePreExistingCRDOwner", func() {
+		FIt("OnePreExistingCRDOwner", func() {
 
 			mainPackageName := genName("nginx-")
 			dependentPackageName := genName("nginx-dep-")
