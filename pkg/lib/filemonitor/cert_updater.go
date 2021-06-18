@@ -37,7 +37,7 @@ func NewKeystore(tlsCrt, tlsKey string) *keystore {
 
 // HandleFilesystemUpdate is intended to be used as the OnUpdateFn for a watcher
 // and expects the certificate files to be in the same directory.
-func (k *keystore) HandleFilesystemUpdate(logger *logrus.Logger, event fsnotify.Event) {
+func (k *keystore) HandleFilesystemUpdate(logger logrus.FieldLogger, event fsnotify.Event) {
 	switch op := event.Op; op {
 	case fsnotify.Create:
 		logger.Debugf("got fs event for %v", event.Name)

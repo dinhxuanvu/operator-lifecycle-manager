@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -66,8 +68,9 @@ var (
 	tlsCertPath = pflag.String(
 		"tls-cert", "", "Path to use for certificate key (requires tls-key)")
 
-	profiling = pflag.Bool(
-		"profiling", false, "serve profiling data (on port 8080)")
+	profiling = pflag.Bool("profiling", false, "deprecated")
+
+	clientCAPath = pflag.String("client-ca", "", "path to watch for client ca bundle")
 
 	namespace = pflag.String(
 		"namespace", "", "namespace where cleanup runs")
@@ -120,64 +123,58 @@ func main() {
 	}
 	logger.Infof("log level %s", logger.Level)
 
-	var useTLS bool
-	if *tlsCertPath != "" && *tlsKeyPath == "" || *tlsCertPath == "" && *tlsKeyPath != "" {
-		logger.Warn("both --tls-key and --tls-crt must be provided for TLS to be enabled, falling back to non-https")
-	} else if *tlsCertPath == "" && *tlsKeyPath == "" {
-		logger.Info("TLS keys not set, using non-https for metrics")
-	} else {
-		logger.Info("TLS keys set, using https for metrics")
-		useTLS = true
-	}
-
-	// Serve a health check.
-	healthMux := http.NewServeMux()
-	healthMux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	mux := http.NewServeMux()
+	profile.RegisterHandlers(mux)
+	mux.Handle("/metrics", promhttp.Handler())
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Serve profiling if enabled
-	if *profiling {
-		logger.Infof("profiling enabled")
-		profile.RegisterHandlers(healthMux)
+	s := http.Server{
+		Handler: mux,
+		Addr:    ":8080",
 	}
+	listenAndServe := s.ListenAndServe
 
-	go func() {
-		err := http.ListenAndServe(":8080", healthMux)
-		if err != nil {
-			logger.Errorf("Health serving failed: %v", err)
-		}
-	}()
-
-	metricsMux := http.NewServeMux()
-	metricsMux.Handle("/metrics", promhttp.Handler())
-	if useTLS {
-		tlsGetCertFn, err := filemonitor.OLMGetCertRotationFn(logger, *tlsCertPath, *tlsKeyPath)
+	if *tlsCertPath != "" && *tlsKeyPath != "" {
+		logger.Info("TLS keys set, using https for metrics")
+		getCertificate, err := filemonitor.OLMGetCertRotationFn(logger, *tlsCertPath, *tlsKeyPath)
 		if err != nil {
 			logger.Errorf("Certificate monitoring for metrics (https) failed: %v", err)
 		}
 
-		go func() {
-			httpsServer := &http.Server{
-				Addr:    ":8081",
-				Handler: metricsMux,
-				TLSConfig: &tls.Config{
-					GetCertificate: tlsGetCertFn,
-				},
-			}
-			err := httpsServer.ListenAndServeTLS("", "")
+		s.Addr = ":8443"
+		s.TLSConfig = &tls.Config{
+			GetCertificate: getCertificate,
+			// GetConfigForClient: func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
+			// 	// todo: rotate
+			// 	return nil, nil
+			// },
+		}
+		if *clientCAPath != "" {
+			pem, err := ioutil.ReadFile(*clientCAPath)
 			if err != nil {
-				logger.Errorf("Metrics (https) serving failed: %v", err)
+				logger.Fatalf("failed to load ca bundle: %v", err)
 			}
-		}()
+			pool := x509.NewCertPool()
+			pool.AppendCertsFromPEM(pem)
+			s.TLSConfig.ClientCAs = pool
+			s.TLSConfig.ClientAuth = tls.VerifyClientCertIfGiven
+		}
+		listenAndServe = func() error {
+			return s.ListenAndServeTLS("", "")
+		}
+	} else if *tlsCertPath != "" || *tlsKeyPath != "" {
+		logger.Fatal("both --tls-key and --tls-cert must be provided for TLS to be enabled")
 	} else {
-		go func() {
-			err := http.ListenAndServe(":8081", metricsMux)
-			if err != nil {
-				logger.Errorf("Metrics (http) serving failed: %v", err)
-			}
-		}()
+		logger.Info("TLS keys not set, using non-https for metrics")
 	}
+
+	go func() {
+		if err := listenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Error(err)
+		}
+	}()
 
 	mgr, err := Manager(ctx, *debug)
 	if err != nil {

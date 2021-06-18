@@ -49,17 +49,16 @@ spec:
           imagePullPolicy: {{ .Values.catalog.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.catalog.service.internalPort }}
-            - containerPort: 8081
-              name: metrics
-              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
+              scheme: {{ if and .Values.catalog.tlsKeyPath .Values.catalog.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
           readinessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.catalog.service.internalPort }}
+              scheme: {{ if and .Values.catalog.tlsKeyPath .Values.catalog.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
           terminationMessagePolicy: FallbackToLogsOnError
           {{- if .Values.catalog.resources }}
           resources:

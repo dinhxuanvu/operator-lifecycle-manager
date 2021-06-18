@@ -18,8 +18,22 @@ spec:
         app: olm-operator
     spec:
       serviceAccountName: olm-operator-serviceaccount
+      volumes:
+        - name: srv-cert
+          secret:
+            secretName: srv-cert
+        - name: profile-collector-cert
+          secret:
+            secretName: profile-collector-cert
       containers:
         - name: olm-operator
+          volumeMounts:
+          - name: srv-cert
+            mountPath: "/srv-cert"
+            readOnly: true
+          - name: profile-collector-cert
+            mountPath: "/profile-collector-cert"
+            readOnly: true
           command:
           - /bin/olm
           args:
@@ -55,17 +69,16 @@ spec:
           imagePullPolicy: {{ .Values.olm.image.pullPolicy }}
           ports:
             - containerPort: {{ .Values.olm.service.internalPort }}
-            - containerPort: 8081
-              name: metrics
-              protocol: TCP
           livenessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.olm.service.internalPort }}
+              scheme: {{ if and .Values.olm.tlsKeyPath .Values.olm.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
           readinessProbe:
             httpGet:
               path: /healthz
               port: {{ .Values.olm.service.internalPort }}
+              scheme: {{ if and .Values.olm.tlsKeyPath .Values.olm.tlsCertPath }}HTTPS{{ else }}HTTP{{end}}
           terminationMessagePolicy: FallbackToLogsOnError
           env:
           - name: OPERATOR_NAMESPACE

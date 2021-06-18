@@ -12,7 +12,7 @@ spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: 8081
+    port: {{ .Values.olm.service.internalPort }}
     protocol: TCP
     targetPort: metrics
   selector:
@@ -31,7 +31,7 @@ spec:
   type: ClusterIP
   ports:
   - name: https-metrics
-    port: 8081
+    port: {{ .Values.catalog.service.internalPort }}
     protocol: TCP
     targetPort: metrics
   selector:
