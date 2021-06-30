@@ -3,10 +3,8 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"time"
@@ -128,25 +126,17 @@ func main() {
 		if err != nil {
 			logger.Errorf("Certificate monitoring for metrics (https) failed: %v", err)
 		}
+		getClientCAs, err := filemonitor.GetCABundleReloadFn(logger, *clientCAPath)
+		if err != nil {
+			logger.Errorf("Client CA bundle failed: %v", err)
+		}
 
 		s.Addr = ":8443"
 		s.TLSConfig = &tls.Config{
-			GetCertificate: getCertificate,
-			// GetConfigForClient: func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
-			// 	// todo: rotate
-			// 	return nil, nil
-			// },
+			GetCertificate:     getCertificate,
+			GetConfigForClient: getClientCAs,
 		}
-		if *clientCAPath != "" {
-			pem, err := ioutil.ReadFile(*clientCAPath)
-			if err != nil {
-				logger.Fatalf("failed to load ca bundle: %v", err)
-			}
-			pool := x509.NewCertPool()
-			pool.AppendCertsFromPEM(pem)
-			s.TLSConfig.ClientCAs = pool
-			s.TLSConfig.ClientAuth = tls.VerifyClientCertIfGiven
-		}
+
 		listenAndServe = func() error {
 			return s.ListenAndServeTLS("", "")
 		}
