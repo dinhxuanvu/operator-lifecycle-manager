@@ -37,19 +37,19 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/time v0.0.0-20210220033141-f8bda1e9f3ba
-	google.golang.org/grpc v1.30.0
+	google.golang.org/grpc v1.38.0
 	gopkg.in/yaml.v2 v2.4.0
 	helm.sh/helm/v3 v3.6.1
-	k8s.io/api v0.21.1
-	k8s.io/apiextensions-apiserver v0.21.1
-	k8s.io/apimachinery v0.21.1
-	k8s.io/apiserver v0.21.1
-	k8s.io/client-go v0.21.1
-	k8s.io/code-generator v0.21.1
-	k8s.io/component-base v0.21.1
+	k8s.io/api v0.22.0-beta.0
+	k8s.io/apiextensions-apiserver v0.22.0-beta.0
+	k8s.io/apimachinery v0.22.0-beta.0
+	k8s.io/apiserver v0.22.0-beta.0
+	k8s.io/client-go v0.22.0-beta.0
+	k8s.io/code-generator v0.22.0-beta.0
+	k8s.io/component-base v0.22.0-beta.0
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.20.4
-	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7
+	k8s.io/kube-openapi v0.0.0-20210421082810-95288971da7e
 	k8s.io/utils v0.0.0-20210527160623-6fdb442a123b
 	rsc.io/letsencrypt v0.0.3 // indirect
 	sigs.k8s.io/controller-runtime v0.9.0
@@ -58,8 +58,6 @@ require (
 )
 
 replace (
-	github.com/googleapis/gnostic => github.com/googleapis/gnostic v0.4.1
-
 	// controller runtime
 	github.com/openshift/api => github.com/openshift/api v0.0.0-20200331152225-585af27e34fd // release-4.5
 	github.com/openshift/client-go => github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0 // release-4.5
