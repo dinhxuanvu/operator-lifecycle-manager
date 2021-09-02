@@ -382,21 +382,30 @@ func RequiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {
 	}
 	out = make([]*api.Property, 0)
 	for a := range apis {
-		val, err := json.Marshal(struct {
-			Group   string `json:"group"`
-			Version string `json:"version"`
-			Kind    string `json:"kind"`
-		}{
-			Group:   a.Group,
-			Version: a.Version,
-			Kind:    a.Kind,
-		})
-		if err != nil {
-			return nil, err
-		}
+		// val, err := json.Marshal(struct {
+		// 	Group   string `json:"group"`
+		// 	Version string `json:"version"`
+		// 	Kind    string `json:"kind"`
+		// }{
+		// 	Group:   a.Group,
+		// 	Version: a.Version,
+		// 	Kind:    a.Kind,
+		// })
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// out = append(out, &api.Property{
+		// 	Type:  "olm.gvk.required",
+		// 	Value: string(val),
+		// })
 		out = append(out, &api.Property{
-			Type:  "olm.gvk.required",
-			Value: string(val),
+			Type: "olm.constraint",
+			Value: fmt.Sprintf(`
+{
+  "action": "require",
+  "evaluator": "cel",
+  "source": "properties.exists(p, p.type == 'olm.gvk' && p.value == {'group': '%s', 'version': '%s', 'kind': '%s'})"
+}`, a.Group, a.Version, a.Kind),
 		})
 	}
 	if len(out) > 0 {

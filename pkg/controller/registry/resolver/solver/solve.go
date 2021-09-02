@@ -130,6 +130,18 @@ func New(options ...Option) (Solver, error) {
 type Option func(s *solver) error
 
 func WithInput(input []Installable) Option {
+	fmt.Printf("@@@ INPUTS:\n")
+	for _, i := range input {
+		fmt.Printf("@@@ %q: ", i.Identifier())
+		if len(i.Constraints()) == 0 {
+			fmt.Printf("{}\n")
+		} else {
+			fmt.Printf("\n")
+			for _, c := range i.Constraints() {
+				fmt.Printf("@@@ - %s\n", c.String(i.Identifier()))
+			}
+		}
+	}
 	return func(s *solver) error {
 		var err error
 		s.litMap, err = newLitMapping(input)

@@ -61,13 +61,18 @@ func NewBundleInstallableFromOperator(o *cache.Operator) (BundleInstallable, err
 	}
 	id := bundleId(o.Name, o.Channel(), o.SourceInfo.Catalog)
 	var constraints []solver.Constraint
-	if o.SourceInfo.Catalog.Virtual() && o.SourceInfo.Subscription == nil {
+	if o.SourceInfo.Catalog.Name == "@existing" && o.SourceInfo.Subscription == nil {
 		// CSVs already associated with a Subscription
 		// may be replaced, but freestanding CSVs must
 		// appear in any solution.
 		constraints = append(constraints, PrettyConstraint(
 			solver.Mandatory(),
 			fmt.Sprintf("clusterserviceversion %s exists and is not referenced by a subscription", o.Name),
+		))
+	} else if o.SourceInfo.Catalog.Name == "@cluster" {
+		constraints = append(constraints, PrettyConstraint(
+			solver.Mandatory(),
+			"cluster-wide constraints have been defined",
 		))
 	}
 	for _, p := range o.Properties {

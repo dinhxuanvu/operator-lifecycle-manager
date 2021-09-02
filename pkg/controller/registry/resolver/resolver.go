@@ -24,16 +24,68 @@ type OperatorResolver interface {
 	SolveOperators(csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription, add map[cache.OperatorSourceInfo]struct{}) (cache.OperatorSet, error)
 }
 
-type SatResolver struct {
-	cache cache.OperatorCacheProvider
-	log   logrus.FieldLogger
+type Evaluator interface {
+	Evaluate(env map[string]interface{}) (bool, error)
 }
 
-func NewDefaultSatResolver(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger) *SatResolver {
-	return &SatResolver{
-		cache: cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
-		log:   logger,
+type EvaluatorProvider interface {
+	Evaluator(id, source string) (Evaluator, error)
+}
+
+type evaluatorPred struct {
+	evaluator Evaluator
+}
+
+func (ep *evaluatorPred) Test(entry *cache.Operator) bool {
+	props := make([]map[string]interface{}, len(entry.Properties))
+	for i, p := range entry.Properties {
+		var v interface{}
+		if err := json.Unmarshal([]byte(p.Value), &v); err != nil {
+			panic(err)
+		}
+		props[i] = map[string]interface{}{
+			"type":  p.Type,
+			"value": v,
+		}
 	}
+	ok, err := ep.evaluator.Evaluate(map[string]interface{}{"properties": props})
+	if err != nil {
+		panic(err)
+	}
+	return ok
+}
+
+func (ep *evaluatorPred) String() string {
+	return "todo: cel expression predicate"
+}
+
+type Option func(*Resolver)
+
+func WithEvaluatorProvider(evaluatorProvider EvaluatorProvider) Option {
+	return func(r *Resolver) {
+		r.evaluatorProvider = evaluatorProvider
+	}
+}
+
+type Resolver struct {
+	cache cache.OperatorCacheProvider
+	log   logrus.FieldLogger
+
+	evaluatorProvider EvaluatorProvider
+}
+
+func New(rcp cache.SourceProvider, catsrcLister v1alpha1listers.CatalogSourceLister, logger logrus.FieldLogger, options ...Option) *Resolver {
+	r := Resolver{
+		cache:             cache.New(rcp, cache.WithLogger(logger), cache.WithCatalogSourceLister(catsrcLister)),
+		log:               logger,
+		evaluatorProvider: newCELEvaluatorProvider(),
+	}
+
+	for _, option := range options {
+		option(&r)
+	}
+
+	return &r
 }
 
 type debugWriter struct {
@@ -46,7 +98,7 @@ func (w *debugWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
-func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
+func (r *Resolver) SolveOperators(namespaces []string, csvs []*v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) (cache.OperatorSet, error) {
 	var errs []error
 
 	installables := make(map[solver.Identifier]solver.Installable, 0)
@@ -67,6 +119,14 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 		return nil, err
 	}
 	for _, i := range existingInstallables {
+		installables[i.Identifier()] = i
+	}
+
+	_, clusterInstallables, err := r.getBundleInstallables(namespaces[0], namespacedCache.Catalog(cache.SourceKey{Name: "@cluster", Namespace: namespaces[1]}).Find(), namespacedCache, visited)
+	if err != nil {
+		return nil, err
+	}
+	for _, i := range clusterInstallables {
 		installables[i.Identifier()] = i
 	}
 
@@ -172,7 +232,7 @@ func (r *SatResolver) SolveOperators(namespaces []string, csvs []*v1alpha1.Clust
 	return operators, nil
 }
 
-func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Operator]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
+func (r *Resolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, current *cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Operator]*BundleInstallable) (map[solver.Identifier]solver.Installable, error) {
 	var cachePredicates, channelPredicates []cache.OperatorPredicate
 	installables := make(map[solver.Identifier]solver.Installable, 0)
 
@@ -302,7 +362,7 @@ func (r *SatResolver) getSubscriptionInstallables(sub *v1alpha1.Subscription, cu
 	return installables, nil
 }
 
-func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleStack []*cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Operator]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
+func (r *Resolver) getBundleInstallables(preferredNamespace string, bundleStack []*cache.Operator, namespacedCache cache.MultiCatalogOperatorFinder, visited map[*cache.Operator]*BundleInstallable) (map[solver.Identifier]struct{}, map[solver.Identifier]*BundleInstallable, error) {
 	errs := make([]error, 0)
 	installables := make(map[solver.Identifier]*BundleInstallable, 0) // all installables, including dependencies
 
@@ -337,6 +397,25 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 		if err != nil {
 			errs = append(errs, err)
 			continue
+		}
+		for _, prop := range bundle.Properties {
+			if prop.Type != "olm.constraint" {
+				continue
+			}
+			var val struct {
+				Evaluator string `json:"evaluator"`
+				Source    string `json:"source"`
+			}
+			if err := json.Unmarshal([]byte(prop.Value), &val); err != nil {
+				panic(err)
+			}
+			ev, err := r.evaluatorProvider.Evaluator(val.Evaluator, val.Source)
+			if err != nil {
+				panic(err)
+			}
+			dependencyPredicates = append(dependencyPredicates, &evaluatorPred{
+				evaluator: ev,
+			})
 		}
 
 		for _, d := range dependencyPredicates {
@@ -410,7 +489,7 @@ func (r *SatResolver) getBundleInstallables(preferredNamespace string, bundleSta
 	return ids, installables, nil
 }
 
-func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {
+func (r *Resolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs []*v1alpha1.Subscription) ([]*api.Property, error) {
 	var properties []*api.Property
 
 	packages := make(map[string]struct{})
@@ -455,7 +534,7 @@ func (r *SatResolver) inferProperties(csv *v1alpha1.ClusterServiceVersion, subs 
 	return properties, nil
 }
 
-func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*cache.Snapshot, error) {
+func (r *Resolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1.Subscription, csvs []*v1alpha1.ClusterServiceVersion) (*cache.Snapshot, error) {
 	existingOperatorCatalog := cache.NewVirtualSourceKey(namespace)
 	// build a catalog snapshot of CSVs without subscriptions
 	csvSubscriptions := make(map[*v1alpha1.ClusterServiceVersion]*v1alpha1.Subscription)
@@ -520,7 +599,7 @@ func (r *SatResolver) newSnapshotForNamespace(namespace string, subs []*v1alpha1
 	return &cache.Snapshot{Entries: standaloneOperators}, nil
 }
 
-func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
+func (r *Resolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFinder, installables map[solver.Identifier]solver.Installable) {
 	// no two operators may provide the same GVK or Package in a namespace
 	gvkConflictToInstallable := make(map[opregistry.GVKProperty][]solver.Identifier)
 	packageConflictToInstallable := make(map[string][]solver.Identifier)
@@ -577,7 +656,7 @@ func (r *SatResolver) addInvariants(namespacedCache cache.MultiCatalogOperatorFi
 	}
 }
 
-func (r *SatResolver) sortBundles(bundles []*cache.Operator) ([]*cache.Operator, error) {
+func (r *Resolver) sortBundles(bundles []*cache.Operator) ([]*cache.Operator, error) {
 	// assume bundles have been passed in sorted by catalog already
 	catalogOrder := make([]cache.SourceKey, 0)
 
