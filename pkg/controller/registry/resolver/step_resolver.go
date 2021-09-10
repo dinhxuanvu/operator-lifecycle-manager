@@ -23,7 +23,8 @@ import (
 )
 
 const (
-	BundleLookupConditionPacked v1alpha1.BundleLookupConditionType = "BundleLookupNotPersisted"
+	BundleLookupConditionPacked   v1alpha1.BundleLookupConditionType = "BundleLookupNotPersisted"
+	ClusterRuntimeConstraintsFile                                    = "olm-runtime-constraints"
 )
 
 var timeNow = func() metav1.Time { return metav1.NewTime(time.Now().UTC()) }
@@ -40,7 +41,7 @@ type OperatorStepResolver struct {
 	client                 versioned.Interface
 	kubeclient             kubernetes.Interface
 	globalCatalogNamespace string
-	satResolver            *SatResolver
+	satResolver            *Resolver
 	log                    logrus.FieldLogger
 }
 
@@ -55,8 +56,15 @@ func NewOperatorStepResolver(lister operatorlister.OperatorLister, client versio
 		client:                 client,
 		kubeclient:             kubeclient,
 		globalCatalogNamespace: globalCatalogNamespace,
-		satResolver:            NewDefaultSatResolver(SourceProviderFromRegistryClientProvider(provider, log), lister.OperatorsV1alpha1().CatalogSourceLister(), log),
-		log:                    log,
+		satResolver: New(mergedSourceProvider{
+			SourceProviderFromRegistryClientProvider(provider, log),
+			cache.StaticSourceProvider{cache.SourceKey{Name: "@cluster", Namespace: globalCatalogNamespace}: &globalConfigMapSource{
+				lister:    lister.CoreV1().ConfigMapLister(),
+				name:      ClusterRuntimeConstraintsFile,
+				namespace: globalCatalogNamespace,
+			}},
+		}, lister.OperatorsV1alpha1().CatalogSourceLister(), log),
+		log: log,
 	}
 }
 

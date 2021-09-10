@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"sort"
@@ -235,4 +236,212 @@ func (o *Operator) Channel() string {
 		return si.Channel
 	}
 	return ""
+}
+
+func (o *Operator) Inline() bool {
+	return o.Bundle != nil && o.Bundle.GetBundlePath() == ""
+}
+
+func (o *Operator) DependencyPredicates() (predicates []OperatorPredicate, err error) {
+	predicates = make([]OperatorPredicate, 0)
+	for _, property := range o.Properties {
+		predicate, err := PredicateForProperty(property)
+		if err != nil {
+			return nil, err
+		}
+		if predicate == nil {
+			continue
+		}
+		predicates = append(predicates, predicate)
+	}
+	return
+}
+
+func RequiredAPIsToProperties(apis APISet) (out []*api.Property, err error) {
+	if len(apis) == 0 {
+		return
+	}
+	out = make([]*api.Property, 0)
+	for a := range apis {
+		out = append(out, &api.Property{
+			Type: "olm.constraint",
+			Value: fmt.Sprintf(`
+			{
+			  "action": "require",
+			  "evaluator": "cel",
+			  "source": "properties.exists(p, p.type == 'olm.gvk' && p.value == {'group': '%s', 'version': '%s', 'kind': '%s'})"
+			}`, a.Group, a.Version, a.Kind),
+		})
+	}
+	if len(out) > 0 {
+		return
+	}
+	return nil, nil
+}
+
+func providedAPIsToProperties(apis APISet) (out []*api.Property, err error) {
+	out = make([]*api.Property, 0)
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Version: a.Version,
+			Kind:    a.Kind,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) > 0 {
+		return
+	}
+	return nil, nil
+}
+
+func LegacyDependenciesToProperties(dependencies []*api.Dependency) ([]*api.Property, error) {
+	var result []*api.Property
+	for _, dependency := range dependencies {
+		switch dependency.Type {
+		case "olm.gvk":
+			type gvk struct {
+				Group   string `json:"group"`
+				Version string `json:"version"`
+				Kind    string `json:"kind"`
+			}
+			var vfrom gvk
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.gvk' dependency: %w", err)
+			}
+			vto := gvk{
+				Group:   vfrom.Group,
+				Version: vfrom.Version,
+				Kind:    vfrom.Kind,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.package.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.gvk.required",
+				Value: string(vb),
+			})
+		case "olm.package":
+			var vfrom struct {
+				PackageName  string `json:"packageName"`
+				VersionRange string `json:"version"`
+			}
+			if err := json.Unmarshal([]byte(dependency.Value), &vfrom); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal legacy 'olm.package' dependency: %w", err)
+			}
+			vto := struct {
+				PackageName  string `json:"packageName"`
+				VersionRange string `json:"versionRange"`
+			}{
+				PackageName:  vfrom.PackageName,
+				VersionRange: vfrom.VersionRange,
+			}
+			vb, err := json.Marshal(&vto)
+			if err != nil {
+				return nil, fmt.Errorf("unexpected error marshaling generated 'olm.package.required' property: %w", err)
+			}
+			result = append(result, &api.Property{
+				Type:  "olm.package.required",
+				Value: string(vb),
+			})
+		case "olm.label":
+			result = append(result, &api.Property{
+				Type:  "olm.label.required",
+				Value: dependency.Value,
+			})
+		}
+	}
+	return result, nil
+}
+
+func APISetToProperties(crds, apis APISet, deprecated bool) (out []*api.Property) {
+	out = make([]*api.Property, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKProperty{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if deprecated {
+		val, err := json.Marshal(opregistry.DeprecatedProperty{})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Property{
+			Type:  opregistry.DeprecatedType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
+}
+
+func APISetToDependencies(crds, apis APISet) (out []*api.Dependency) {
+	if len(crds)+len(apis) == 0 {
+		return nil
+	}
+	out = make([]*api.Dependency, 0)
+	for a := range crds {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	for a := range apis {
+		val, err := json.Marshal(opregistry.GVKDependency{
+			Group:   a.Group,
+			Kind:    a.Kind,
+			Version: a.Version,
+		})
+		if err != nil {
+			panic(err)
+		}
+		out = append(out, &api.Dependency{
+			Type:  opregistry.GVKType,
+			Value: string(val),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return
 }

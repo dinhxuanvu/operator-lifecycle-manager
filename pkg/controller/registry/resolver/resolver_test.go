@@ -37,7 +37,7 @@ func TestSolveOperators(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -65,7 +65,7 @@ func TestDisjointChannelGraph(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -98,7 +98,7 @@ func TestPropertiesAnnotationHonored(t *testing.T) {
 
 	b := genOperator("packageB.v1", "1.0.1", "", "packageB", "alpha", "community", "olm", nil, nil, []*api.Dependency{{Type: "olm.package", Value: `{"packageName":"packageA","version":"1.0.0"}`}}, "", false)
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			community: &cache.Snapshot{
 				Entries: []*cache.Operator{b},
@@ -129,7 +129,7 @@ func TestSolveOperators_MultipleChannels(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -166,7 +166,7 @@ func TestSolveOperators_FindLatestVersion(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub, newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			cache.SourceKey{
 				Namespace: "olm",
@@ -224,7 +224,7 @@ func TestSolveOperators_FindLatestVersionWithDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -289,7 +289,7 @@ func TestSolveOperators_FindLatestVersionWithNestedDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -393,7 +393,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(ssp, cache.WithCatalogSourceLister(&stubCatalogSourceLister{
 			catsrcs: []*v1alpha1.CatalogSource{
 				{
@@ -433,7 +433,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		},
 	}
 
-	satResolver = SatResolver{
+	satResolver = Resolver{
 		cache: cache.New(ssp, cache.WithCatalogSourceLister(&stubCatalogSourceLister{
 			catsrcs: []*v1alpha1.CatalogSource{
 				{
@@ -484,7 +484,7 @@ func TestSolveOperators_CatsrcPrioritySorting(t *testing.T) {
 		},
 	}
 
-	satResolver = SatResolver{
+	satResolver = Resolver{
 		cache: cache.New(ssp),
 	}
 
@@ -523,7 +523,7 @@ func TestSolveOperators_WithDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -573,7 +573,7 @@ func TestSolveOperators_WithGVKDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			community: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -626,7 +626,7 @@ func TestSolveOperators_WithLabelDependencies(t *testing.T) {
 		operatorBv1.Properties = append(operatorBv1.Properties, p)
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -665,7 +665,7 @@ func TestSolveOperators_WithUnsatisfiableLabelDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -708,7 +708,7 @@ func TestSolveOperators_WithNestedGVKDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			cache.SourceKey{
 				Namespace: "olm",
@@ -784,7 +784,7 @@ func TestSolveOperators_IgnoreUnsatisfiableDependencies(t *testing.T) {
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			community: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -833,7 +833,7 @@ func TestSolveOperators_PreferCatalogInSameNamespace(t *testing.T) {
 	sub := existingSub(namespace, "packageA.v1", "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{sub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -873,7 +873,7 @@ func TestSolveOperators_ResolveOnlyInCachedNamespaces(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -905,7 +905,7 @@ func TestSolveOperators_PreferDefaultChannelInResolution(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -943,7 +943,7 @@ func TestSolveOperators_PreferDefaultChannelInResolutionForTransitiveDependencie
 
 	const defaultChannel = "stable"
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -986,7 +986,7 @@ func TestSolveOperators_SubscriptionlessOperatorsSatisfyDependencies(t *testing.
 		},
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1022,7 +1022,7 @@ func TestSolveOperators_SubscriptionlessOperatorsCanConflict(t *testing.T) {
 	newSub := newSub(namespace, "packageB", "alpha", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1053,7 +1053,7 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 	newSub := newSub(namespace, "packageA", "stable", catalog)
 	subs := []*v1alpha1.Subscription{newSub}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1073,7 +1073,8 @@ func TestSolveOperators_PackageCannotSelfSatisfy(t *testing.T) {
 				},
 			},
 		}),
-		log: logrus.New(),
+		log:               logrus.New(),
+		evaluatorProvider: newCELEvaluatorProvider(),
 	}
 
 	operators, err := satResolver.SolveOperators([]string{"olm"}, nil, subs)
@@ -1157,11 +1158,12 @@ func TestSolveOperators_TransferApiOwnership(t *testing.T) {
 	var operators cache.OperatorSet
 	for i, p := range phases {
 		t.Run(fmt.Sprintf("phase %d", i+1), func(t *testing.T) {
-			satResolver := SatResolver{
+			satResolver := Resolver{
 				cache: cache.New(cache.StaticSourceProvider{
 					catalog: p.catalog,
 				}),
-				log: logrus.New(),
+				log:               logrus.New(),
+				evaluatorProvider: newCELEvaluatorProvider(),
 			}
 			csvs := make([]*v1alpha1.ClusterServiceVersion, 0)
 			for _, o := range operators {
@@ -1229,7 +1231,7 @@ func TestSolveOperators_WithoutDeprecated(t *testing.T) {
 		newSub(catalog.Namespace, "packageA", "alpha", catalog),
 	}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1252,7 +1254,7 @@ func TestSolveOperatorsWithDeprecatedInnerChannelEntry(t *testing.T) {
 		newSub(catalog.Namespace, "a", "c", catalog),
 	}
 	logger, _ := test.NewNullLogger()
-	resolver := SatResolver{
+	resolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1300,7 +1302,7 @@ func TestSolveOperators_WithSkipsAndStartingCSV(t *testing.T) {
 	op5.Skips = []string{"packageA.v2", "packageA.v3", "packageA.v4"}
 	op6 := genOperator("packageA.v6", "6.0.0", "packageA.v5", "packageA", "alpha", "community", "olm", nil, Provides, nil, "", false)
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1332,7 +1334,7 @@ func TestSolveOperators_WithSkips(t *testing.T) {
 	opB2 := genOperator("packageB.v2", "2.0.0", "", "packageB", "alpha", catalog.Name, catalog.Namespace, nil, nil, nil, "", false)
 	opB2.Skips = []string{"packageB.v1"}
 
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1367,13 +1369,14 @@ func TestSolveOperatorsWithSkipsPreventingSelection(t *testing.T) {
 	b1 := genOperator("b-1", "1.0.0", "", "b", "channel", catalog.Name, catalog.Namespace, nil, gvks, nil, "", false)
 
 	logger, _ := test.NewNullLogger()
-	satResolver := SatResolver{
+	satResolver := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{a1, b3, b2, b1},
 			},
 		}),
-		log: logger,
+		log:               logger,
+		evaluatorProvider: newCELEvaluatorProvider(),
 	}
 
 	_, err := satResolver.SolveOperators([]string{namespace}, nil, subs)
@@ -1400,7 +1403,7 @@ func TestSolveOperatorsWithClusterServiceVersionHavingDependency(t *testing.T) {
 	}
 
 	log, _ := test.NewNullLogger()
-	r := SatResolver{
+	r := Resolver{
 		cache: cache.New(cache.StaticSourceProvider{
 			catalog: &cache.Snapshot{
 				Entries: []*cache.Operator{
@@ -1641,7 +1644,7 @@ func TestInferProperties(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			require := require.New(t)
 			logger, _ := test.NewNullLogger()
-			r := SatResolver{
+			r := Resolver{
 				log:   logger,
 				cache: cache.New(tc.Cache),
 			}

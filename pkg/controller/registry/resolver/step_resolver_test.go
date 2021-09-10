@@ -838,9 +838,10 @@ func TestResolver(t *testing.T) {
 				ssp[catalog] = snapshot
 			}
 			log := logrus.New()
-			satresolver := &SatResolver{
-				cache: resolvercache.New(ssp),
-				log:   log,
+			satresolver := &Resolver{
+				cache:             resolvercache.New(ssp),
+				log:               log,
+				evaluatorProvider: newCELEvaluatorProvider(),
 			}
 			resolver := NewOperatorStepResolver(lister, clientFake, kClientFake, "", nil, log)
 			resolver.satResolver = satresolver
@@ -980,7 +981,7 @@ func TestNamespaceResolverRBAC(t *testing.T) {
 				}
 				stubSnapshot.Entries = append(stubSnapshot.Entries, op)
 			}
-			satresolver := &SatResolver{
+			satresolver := &Resolver{
 				cache: resolvercache.New(resolvercache.StaticSourceProvider{
 					catalog: stubSnapshot,
 				}),

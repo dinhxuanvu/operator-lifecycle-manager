@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -34,9 +35,9 @@ func (k *SourceKey) Equal(compare SourceKey) bool {
 	return k.Name == compare.Name && k.Namespace == compare.Namespace
 }
 
-// Virtual indicates if this is a "virtual" catalog representing the currently installed operators in a namespace
+// Virtual indicates if this is a "virtual" catalog
 func (k *SourceKey) Virtual() bool {
-	return k.Name == existingOperatorKey && k.Namespace != ""
+	return strings.HasPrefix("@", k.Name)
 }
 
 func NewVirtualSourceKey(namespace string) SourceKey {
@@ -297,6 +298,7 @@ func (c *NamespacedOperatorCache) Find(p ...OperatorPredicate) []*Operator {
 
 type Snapshot struct {
 	Entries []*Operator
+	Valid   <-chan struct{}
 }
 
 var _ Source = &Snapshot{}
@@ -323,7 +325,15 @@ func (hdr *snapshotHeader) Cancel() {
 func (hdr *snapshotHeader) Valid(at time.Time) bool {
 	hdr.m.RLock()
 	defer hdr.m.RUnlock()
-	return hdr.snapshot != nil && hdr.err == nil && at.Before(hdr.expiry)
+	if hdr.snapshot == nil || hdr.err != nil || !at.Before(hdr.expiry) {
+		return false
+	}
+	select {
+	case <-hdr.snapshot.Valid:
+		return false
+	default:
+		return true
+	}
 }
 
 type sortableSnapshots struct {

@@ -14,6 +14,7 @@ require (
 	github.com/go-bindata/go-bindata/v3 v3.1.3
 	github.com/go-logr/logr v0.4.0
 	github.com/golang/mock v1.4.1
+	github.com/google/cel-go v0.7.3
 	github.com/google/go-cmp v0.5.6
 	github.com/googleapis/gnostic v0.5.5
 	github.com/itchyny/gojq v0.11.0
