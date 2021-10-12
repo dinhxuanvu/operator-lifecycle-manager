@@ -36,7 +36,7 @@ var _ = Describe("Operator Group", func() {
 		TearDown(testNamespace)
 	})
 
-	It("e2e functionality", func() {
+	FIt("e2e functionality", func() {
 
 		// Create namespace with specific label
 		// Create CRD
@@ -116,21 +116,19 @@ var _ = Describe("Operator Group", func() {
 		}
 
 		log("Waiting on operator group to have correct status")
-		err = wait.Poll(pollInterval, pollDuration, func() (bool, error) {
+		Eventually(func() error {
 			fetched, fetchErr := crc.OperatorsV1().OperatorGroups(opGroupNamespace).Get(context.TODO(), operatorGroup.Name, metav1.GetOptions{})
 			if fetchErr != nil {
-				return false, fetchErr
+				return fetchErr
 			}
 			if len(fetched.Status.Namespaces) > 0 {
-				require.ElementsMatch(GinkgoT(), expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces, "have %#v", fetched.Status.Namespaces)
-				return true, nil
+				require.Equals(GinkgoT(), expectedOperatorGroupStatus.Namespaces, fetched.Status.Namespaces, "have %#v", fetched.Status.Namespaces)
+				return nil
 			}
-			return false, nil
-		})
-		require.NoError(GinkgoT(), err)
+			return nil
+		}).Should(Succeed())
 
 		log("Creating CSV")
-
 		// Generate permissions
 		serviceAccountName := genName("nginx-sa")
 		permissions := []v1alpha1.StrategyDeploymentPermissions{
